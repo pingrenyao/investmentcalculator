@@ -66,6 +66,7 @@
             <th>买入数量 (token)</th>
             <th>卖出价格 (USDT)</th>
             <th>卖出收入 (USDT)</th>
+            <th>收益数量 (USDT)</th>
         </tr>
     </thead>
     <tbody></tbody>
@@ -89,7 +90,7 @@
     function removeRecord(button) {
         const record = button.parentElement;
         record.remove();
-        updateFundInfo();  // 移除后更新比例和剩余资金
+        updateFundInfo();
     }
 
     function updateFundInfo() {
@@ -99,25 +100,12 @@
             .map(input => parseFloat(input.value) || 0);
         const totalPercent = allocationPercents.reduce((sum, p) => sum + p, 0);
 
-        // 更新已规划比例和剩余比例
         document.getElementById('plannedPercent').innerText = totalPercent.toFixed(2);
         document.getElementById('remainingPercent').innerText = (100 - totalPercent).toFixed(2);
 
-        // 检查总比例是否超过 100%
         if (totalPercent > 100) {
             alert("总比例不能超过 100%");
         }
-
-        // 实时更新每条记录的投入资金
-        const buyPrices = Array.from(document.getElementsByClassName('buyPrice'))
-            .map(input => parseFloat(input.value) || 0);
-        buyPrices.forEach((price, index) => {
-            const percent = allocationPercents[index];
-            const fund = totalFund * (percent / 100);
-            if (!isNaN(fund)) {
-                input.title = `此价格投入 ${fund.toFixed(2)} USDT`;
-            }
-        });
     }
 
     function calculate() {
@@ -138,6 +126,7 @@
             const tokens = fund / price;
             const sellPrice = (price * (1 + profitPercent)).toFixed(2);
             const revenue = (tokens * sellPrice).toFixed(2);
+            const profit = (revenue - fund).toFixed(2);
 
             totalCost += fund;
             totalRevenue += parseFloat(revenue);
@@ -150,16 +139,18 @@
                     <td>${tokens.toFixed(6)}</td>
                     <td>${sellPrice}</td>
                     <td>${revenue}</td>
+                    <td>${profit}</td>
                 </tr>
             `;
         });
 
-        const profit = (totalRevenue - totalCost).toFixed(2);
+        const totalProfit = (totalRevenue - totalCost).toFixed(2);
 
         resultHTML += `
             <tr>
-                <td colspan="4"><strong>总计</strong></td>
-                <td colspan="2">利润: ${profit} USDT</td>
+                <td colspan="5"><strong>总计</strong></td>
+                <td>${totalRevenue.toFixed(2)}</td>
+                <td>${totalProfit} USDT</td>
             </tr>
         `;
 
