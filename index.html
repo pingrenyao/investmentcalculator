@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>投资计算器</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+        input {
+            margin: 5px;
+            padding: 5px;
+            width: 150px;
+        }
+        .record {
+            display: flex;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        button {
+            margin: 5px;
+            padding: 5px 10px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: center;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+    </style>
+</head>
+<body>
+
+<h2>投资计算器</h2>
+
+<div>
+    <label for="totalFund">总资金 (USDT)：</label>
+    <input type="number" id="totalFund" value="2000" title="请输入您的总投资资金" oninput="updateFundInfo()">
+    <label for="profitPercent">目标利润率 (%)：</label>
+    <input type="number" id="profitPercent" value="2.5" title="输入卖出时的目标利润率">
+</div>
+
+<p>已规划比例：<span id="plannedPercent">0</span>%，剩余比例：<span id="remainingPercent">100</span>%</p>
+
+<button onclick="addRecord()">添加买入记录</button>
+
+<div id="records"></div>
+
+<button onclick="calculate()">计算</button>
+
+<table id="resultTable">
+    <thead>
+        <tr>
+            <th>买入价格 (USDT)</th>
+            <th>分配比例 (%)</th>
+            <th>投入资金 (USDT)</th>
+            <th>买入数量 (token)</th>
+            <th>卖出价格 (USDT)</th>
+            <th>卖出收入 (USDT)</th>
+        </tr>
+    </thead>
+    <tbody></tbody>
+</table>
+
+<script>
+    function addRecord() {
+        const recordsDiv = document.getElementById('records');
+        const recordDiv = document.createElement('div');
+        recordDiv.className = 'record';
+
+        recordDiv.innerHTML = `
+            <input type="number" class="buyPrice" placeholder="买入价格" title="输入买入的价格" oninput="updateFundInfo()">
+            <input type="number" class="allocationPercent" placeholder="分配比例 (%)" title="输入该价格的投资比例" oninput="updateFundInfo()">
+            <button onclick="removeRecord(this)">删除</button>
+        `;
+
+        recordsDiv.appendChild(recordDiv);
+    }
+
+    function removeRecord(button) {
+        const record = button.parentElement;
+        record.remove();
+        updateFundInfo();  // 移除后更新比例和剩余资金
+    }
+
+    function updateFundInfo() {
+        const totalFund = parseFloat(document.getElementById('totalFund').value) || 0;
+
+        const allocationPercents = Array.from(document.getElementsByClassName('allocationPercent'))
+            .map(input => parseFloat(input.value) || 0);
+        const totalPercent = allocationPercents.reduce((sum, p) => sum + p, 0);
+
+        // 更新已规划比例和剩余比例
+        document.getElementById('plannedPercent').innerText = totalPercent.toFixed(2);
+        document.getElementById('remainingPercent').innerText = (100 - totalPercent).toFixed(2);
+
+        // 检查总比例是否超过 100%
+        if (totalPercent > 100) {
+            alert("总比例不能超过 100%");
+        }
+
+        // 实时更新每条记录的投入资金
+        const buyPrices = Array.from(document.getElementsByClassName('buyPrice'))
+            .map(input => parseFloat(input.value) || 0);
+        buyPrices.forEach((price, index) => {
+            const percent = allocationPercents[index];
+            const fund = totalFund * (percent / 100);
+            if (!isNaN(fund)) {
+                input.title = `此价格投入 ${fund.toFixed(2)} USDT`;
+            }
+        });
+    }
+
+    function calculate() {
+        const totalFund = parseFloat(document.getElementById('totalFund').value) || 0;
+        const profitPercent = parseFloat(document.getElementById('profitPercent').value) / 100;
+
+        const buyPrices = Array.from(document.getElementsByClassName('buyPrice'))
+            .map(input => parseFloat(input.value) || 0);
+        const allocationPercents = Array.from(document.getElementsByClassName('allocationPercent'))
+            .map(input => parseFloat(input.value) / 100 || 0);
+
+        let resultHTML = '';
+        let totalCost = 0, totalRevenue = 0;
+
+        buyPrices.forEach((price, index) => {
+            const allocation = allocationPercents[index];
+            const fund = totalFund * allocation;
+            const tokens = fund / price;
+            const sellPrice = (price * (1 + profitPercent)).toFixed(2);
+            const revenue = (tokens * sellPrice).toFixed(2);
+
+            totalCost += fund;
+            totalRevenue += parseFloat(revenue);
+
+            resultHTML += `
+                <tr>
+                    <td>${price}</td>
+                    <td>${(allocation * 100).toFixed(2)}</td>
+                    <td>${fund.toFixed(2)}</td>
+                    <td>${tokens.toFixed(6)}</td>
+                    <td>${sellPrice}</td>
+                    <td>${revenue}</td>
+                </tr>
+            `;
+        });
+
+        const profit = (totalRevenue - totalCost).toFixed(2);
+
+        resultHTML += `
+            <tr>
+                <td colspan="4"><strong>总计</strong></td>
+                <td colspan="2">利润: ${profit} USDT</td>
+            </tr>
+        `;
+
+        document.querySelector('#resultTable tbody').innerHTML = resultHTML;
+    }
+</script>
+
+</body>
+</html>
