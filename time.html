@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Time Difference Calculator</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #f0f0f0;
+        }
+        .container {
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        .input-group {
+            margin: 10px 0;
+        }
+        label {
+            display: inline-block;
+            width: 100px;
+        }
+        textarea {
+            width: 200px;
+            height: 50px;
+            margin: 5px 0;
+            padding: 5px;
+        }
+        button {
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>Time Difference Calculator</h2>
+        <div class="input-group">
+            <label for="startTimeRange">开始时间段:</label>
+            <textarea id="startTimeRange" placeholder="YYYY-MM-DD HH:mm&#10;YYYY-MM-DD HH:mm"></textarea>
+        </div>
+        <div class="input-group">
+            <label for="endTimeRange">结束时间段:</label>
+            <textarea id="endTimeRange" placeholder="YYYY-MM-DD HH:mm&#10;YYYY-MM-DD HH:mm"></textarea>
+        </div>
+        <button onclick="calculateDifference()">Calculate Difference</button>
+        <p id="result"></p>
+        <p id="resultCompact"></p>
+    </div>
+
+    <script>
+        function parseDateTime(input, lineIndex) {
+            // Remove quotes and trim whitespace
+            input = input.replace(/"/g, '').trim();
+            const lines = input.split('\n');
+            if (lines.length > lineIndex) {
+                return new Date(lines[lineIndex].trim());
+            }
+            return null;
+        }
+
+        function calculateDifference() {
+            const startTimeRange = document.getElementById('startTimeRange').value;
+            const endTimeRange = document.getElementById('endTimeRange').value;
+
+            const startDate = parseDateTime(startTimeRange, 0); // Use first line
+            const endDate = parseDateTime(endTimeRange, 1);    // Use second line
+
+            if (!startDate || !endDate) {
+                document.getElementById('result').innerText = "请输入有效的日期和时间。";
+                document.getElementById('resultCompact').innerText = "";
+                return;
+            }
+
+            if (endDate < startDate) {
+                document.getElementById('result').innerText = "结束时间不能早于开始时间。";
+                document.getElementById('resultCompact').innerText = "";
+                return;
+            }
+
+            const diffInMilliseconds = endDate - startDate;
+            const days = Math.floor(diffInMilliseconds / (24 * 3600000));
+            const hours = Math.floor((diffInMilliseconds % (24 * 3600000)) / 3600000);
+            const minutes = Math.floor((diffInMilliseconds % 3600000) / 60000);
+
+            document.getElementById('result').innerText = `时间差: ${days} days ${hours} hours ${minutes} minutes`;
+            document.getElementById('resultCompact').innerText = `${days}d${hours}h${minutes}m`;
+        }
+    </script>
+</body>
+</html>
+

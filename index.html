@@ -9,7 +9,7 @@
             font-family: Arial, sans-serif;
             margin: 20px;
         }
-        input {
+        input, select {
             margin: 5px;
             padding: 5px;
             width: 150px;
@@ -38,20 +38,39 @@
         }
     </style>
 </head>
-<body>
+<body onload="loadData()">
 
 <h2>投资计算器</h2>
 
 <div>
-    <label for="totalFund">总资金 (USDT)：</label>
-    <input type="number" id="totalFund" value="2000" title="请输入您的总投资资金" oninput="updateFundInfo()">
-    <label for="profitPercent">目标利润率 (%)：</label>
-    <input type="number" id="profitPercent" value="2.5" title="输入卖出时的目标利润率">
+    <label for="feePercent">手续费率 (%)：</label>
+    <input type="number" id="feePercent" value="0.1" step="0.0001">
+
+    <label for="calcMode">选择计算方式：</label>
+    <select id="calcMode" onchange="toggleProfitInputs()">
+        <option value="rate">按利润率 (%)</option>
+        <option value="targetPrice">按目标价格</option>
+        <option value="fixedDifference" selected>按固定增长差值</option>
+    </select>
+
+    <div id="rateInput" style="display: none;">
+        <label for="profitPercent">目标利润率 (%)：</label>
+        <input type="number" id="profitPercent" value="2.5">
+    </div>
+
+    <div id="targetPriceInput" style="display: none;">
+        <label for="targetPrice">目标价格：</label>
+        <input type="number" id="targetPrice" placeholder="输入目标卖出价格">
+    </div>
+
+    <div id="fixedDiffInput" style="display: inline;">
+        <label for="fixedDifference">固定增长差值：</label>
+        <input type="number" id="fixedDifference" value="0.1" step="0.01">
+    </div>
 </div>
 
-<p>已规划比例：<span id="plannedPercent">0</span>%，剩余比例：<span id="remainingPercent">100</span>%</p>
-
 <button onclick="addRecord()">添加买入记录</button>
+<button onclick="saveData()">保存数据</button>
 
 <div id="records"></div>
 
@@ -60,101 +79,175 @@
 <table id="resultTable">
     <thead>
         <tr>
-            <th>买入价格 (USDT)</th>
-            <th>分配比例 (%)</th>
-            <th>投入资金 (USDT)</th>
-            <th>买入数量 (token)</th>
-            <th>卖出价格 (USDT)</th>
-            <th>卖出收入 (USDT)</th>
-            <th>收益数量 (USDT)</th>
+            <th>买入价格</th>
+            <th>购买方式</th>
+            <th>数量 / 金额</th>
+            <th>买入手续费(TOKEN)</th>
+            <th>卖出价格</th>
+            <th>卖出收入(USDT)</th>
+            <th>卖出手续费(USDT)</th>
+            <th>总手续费(USDT)</th>
+            <th>收益</th>
+            <th>增值比率 (%)</th>
+            <th>实际到手金额</th>
         </tr>
     </thead>
     <tbody></tbody>
 </table>
 
 <script>
-    function addRecord() {
+    function toggleProfitInputs() {
+        const calcMode = document.getElementById('calcMode').value;
+        document.getElementById('rateInput').style.display = calcMode === 'rate' ? 'inline' : 'none';
+        document.getElementById('targetPriceInput').style.display = calcMode === 'targetPrice' ? 'inline' : 'none';
+        document.getElementById('fixedDiffInput').style.display = calcMode === 'fixedDifference' ? 'inline' : 'none';
+    }
+
+    function addRecord(buyPrice = '', buyType = 'amount', buyValue = '') {
         const recordsDiv = document.getElementById('records');
         const recordDiv = document.createElement('div');
         recordDiv.className = 'record';
 
         recordDiv.innerHTML = `
-            <input type="number" class="buyPrice" placeholder="买入价格" title="输入买入的价格" oninput="updateFundInfo()">
-            <input type="number" class="allocationPercent" placeholder="分配比例 (%)" title="输入该价格的投资比例" oninput="updateFundInfo()">
+            <input type="number" class="buyPrice" placeholder="买入价格" value="${buyPrice}">
+            <select class="buyType" onchange="toggleInputType(this)">
+                <option value="amount" ${buyType === 'amount' ? 'selected' : ''}>指定金额</option>
+                <option value="quantity" ${buyType === 'quantity' ? 'selected' : ''}>指定数量</option>
+            </select>
+            <input type="number" class="buyValue" placeholder="${buyType === 'amount' ? '输入金额 (USDT)' : '输入数量 (Token)'}" value="${buyValue}">
             <button onclick="removeRecord(this)">删除</button>
         `;
 
         recordsDiv.appendChild(recordDiv);
     }
 
+    function toggleInputType(select) {
+        const buyValueInput = select.nextElementSibling;
+        buyValueInput.placeholder = select.value === "amount" ? "输入金额 (USDT)" : "输入数量 (Token)";
+    }
+
     function removeRecord(button) {
         const record = button.parentElement;
         record.remove();
-        updateFundInfo();
-    }
-
-    function updateFundInfo() {
-        const totalFund = parseFloat(document.getElementById('totalFund').value) || 0;
-
-        const allocationPercents = Array.from(document.getElementsByClassName('allocationPercent'))
-            .map(input => parseFloat(input.value) || 0);
-        const totalPercent = allocationPercents.reduce((sum, p) => sum + p, 0);
-
-        document.getElementById('plannedPercent').innerText = totalPercent.toFixed(2);
-        document.getElementById('remainingPercent').innerText = (100 - totalPercent).toFixed(2);
-
-        if (totalPercent > 100) {
-            alert("总比例不能超过 100%");
-        }
     }
 
     function calculate() {
-        const totalFund = parseFloat(document.getElementById('totalFund').value) || 0;
-        const profitPercent = parseFloat(document.getElementById('profitPercent').value) / 100;
+    const feePercent = parseFloat(document.getElementById('feePercent').value) / 100;
+    const calcMode = document.getElementById('calcMode').value;
+    const profitPercent = parseFloat(document.getElementById('profitPercent').value) / 100;
+    const targetPrice = parseFloat(document.getElementById('targetPrice').value);
+    const fixedDiff = parseFloat(document.getElementById('fixedDifference').value) || 0;
 
-        const buyPrices = Array.from(document.getElementsByClassName('buyPrice'))
-            .map(input => parseFloat(input.value) || 0);
-        const allocationPercents = Array.from(document.getElementsByClassName('allocationPercent'))
-            .map(input => parseFloat(input.value) / 100 || 0);
+    let totalInvestment = 0, totalProfit = 0, totalFees = 0, totalTokens = 0, totalActualAmount = 0;
+    let resultHTML = '';
 
-        let resultHTML = '';
-        let totalCost = 0, totalRevenue = 0;
+    document.querySelectorAll('.record').forEach((row) => {
+        const price = parseFloat(row.querySelector('.buyPrice').value) || 0;
+        const buyType = row.querySelector('.buyType').value;
+        const buyValue = parseFloat(row.querySelector('.buyValue').value) || 0;
 
-        buyPrices.forEach((price, index) => {
-            const allocation = allocationPercents[index];
-            const fund = totalFund * allocation;
-            const tokens = fund / price;
-            const sellPrice = (price * (1 + profitPercent)).toFixed(2);
-            const revenue = (tokens * sellPrice).toFixed(2);
-            const profit = (revenue - fund).toFixed(2);
+        const tokens = buyType === 'amount' ? buyValue / price : buyValue;
+        const usedAmount = buyType === 'amount' ? buyValue : tokens * price;
+        const buyFeeTokens = tokens * feePercent;
+        const buyFeeUSDT = buyFeeTokens * price; // 购买手续费（USDT）
+        const actualTokensToSell = tokens - buyFeeTokens;
 
-            totalCost += fund;
-            totalRevenue += parseFloat(revenue);
+        let sellPrice;
+        switch (calcMode) {
+            case 'rate':
+                sellPrice = price * (1 + profitPercent);
+                break;
+            case 'targetPrice':
+                sellPrice = targetPrice;
+                break;
+            case 'fixedDifference':
+                sellPrice = price + fixedDiff;
+                break;
+        }
+        sellPrice = parseFloat(sellPrice).toFixed(2);
 
-            resultHTML += `
-                <tr>
-                    <td>${price}</td>
-                    <td>${(allocation * 100).toFixed(2)}</td>
-                    <td>${fund.toFixed(2)}</td>
-                    <td>${tokens.toFixed(6)}</td>
-                    <td>${sellPrice}</td>
-                    <td>${revenue}</td>
-                    <td>${profit}</td>
-                </tr>
-            `;
-        });
+        const revenue = (actualTokensToSell * sellPrice).toFixed(4);
+        const sellFeeUSDT = (revenue * feePercent).toFixed(4); // 卖出手续费（USDT）
+        const totalFee = (buyFeeUSDT + parseFloat(sellFeeUSDT)).toFixed(4); // 总手续费（USDT）
+        const profit = (revenue - usedAmount - totalFee).toFixed(4);
+        const increaseRate = (((sellPrice - price) / price) * 100).toFixed(2);
+        const actualAmount = (revenue - parseFloat(sellFeeUSDT)).toFixed(4);
 
-        const totalProfit = (totalRevenue - totalCost).toFixed(2);
+        totalInvestment += usedAmount;
+        totalProfit += parseFloat(profit);
+        totalFees += parseFloat(totalFee);
+        totalTokens += tokens;
+        totalActualAmount += parseFloat(actualAmount);
 
         resultHTML += `
             <tr>
-                <td colspan="5"><strong>总计</strong></td>
-                <td>${totalRevenue.toFixed(2)}</td>
-                <td>${totalProfit} USDT</td>
+                <td>${price}</td>
+                <td>${buyType === 'amount' ? '金额' : '数量'}</td>
+                <td>${tokens.toFixed(6)} / ${usedAmount.toFixed(2)} USDT</td>
+                <td>${buyFeeTokens.toFixed(6)}</td>
+                <td>${sellPrice}</td>
+                <td>${revenue}</td>
+                <td>${sellFeeUSDT}</td>
+                <td>${totalFee}</td>
+                <td>${profit}</td>
+                <td>${increaseRate}</td>
+                <td>${actualAmount}</td>
             </tr>
         `;
+    });
 
-        document.querySelector('#resultTable tbody').innerHTML = resultHTML;
+    resultHTML += `
+        <tr>
+            <td><strong>总计</strong></td>
+            <td></td>
+            <td>${totalTokens.toFixed(6)} / ${totalInvestment.toFixed(2)} USDT</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td>${totalFees.toFixed(4)}</td>
+            <td>${totalProfit.toFixed(4)}</td>
+            <td></td>
+            <td>${totalActualAmount.toFixed(4)}</td>
+        </tr>
+    `;
+
+    document.querySelector('#resultTable tbody').innerHTML = resultHTML;
+}
+
+
+    function saveData() {
+        const records = Array.from(document.querySelectorAll('.record')).map(row => ({
+            buyPrice: row.querySelector('.buyPrice').value,
+            buyType: row.querySelector('.buyType').value,
+            buyValue: row.querySelector('.buyValue').value
+        }));
+
+        const data = {
+            feePercent: document.getElementById('feePercent').value,
+            calcMode: document.getElementById('calcMode').value,
+            profitPercent: document.getElementById('profitPercent').value,
+            targetPrice: document.getElementById('targetPrice').value,
+            fixedDifference: document.getElementById('fixedDifference').value,
+            records
+        };
+
+        localStorage.setItem('investmentData', JSON.stringify(data));
+        alert('数据已保存');
+    }
+
+    function loadData() {
+        const data = JSON.parse(localStorage.getItem('investmentData'));
+        if (!data) return;
+
+        document.getElementById('feePercent').value = data.feePercent;
+        document.getElementById('calcMode').value = data.calcMode;
+        document.getElementById('profitPercent').value = data.profitPercent;
+        document.getElementById('targetPrice').value = data.targetPrice;
+        document.getElementById('fixedDifference').value = data.fixedDifference;
+        toggleProfitInputs();
+
+        data.records.forEach(record => addRecord(record.buyPrice, record.buyType, record.buyValue));
     }
 </script>
 
